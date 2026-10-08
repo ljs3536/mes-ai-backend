@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from .. import queries, services
 from ..db import get_db
+from ..mqtt_bridge import bridge
 from ..schemas import MachineDetailOut, MachineOut, SensorReadingOut
 
 router = APIRouter(prefix="/machines", tags=["machines"])
@@ -23,9 +24,13 @@ def telemetry(machine_id: int, db: Db, minutes: Annotated[int, Query(ge=1, le=60
 
 @router.post("/{machine_id}/hold", response_model=MachineOut)
 def hold(machine_id: int, db: Db):
-    return services.hold_machine(db, machine_id)
+    machine = services.hold_machine(db, machine_id)
+    bridge.publish_job(db, machine)
+    return machine
 
 
 @router.post("/{machine_id}/resume", response_model=MachineOut)
 def resume(machine_id: int, db: Db):
-    return services.resume_machine(db, machine_id)
+    machine = services.resume_machine(db, machine_id)
+    bridge.publish_job(db, machine)
+    return machine

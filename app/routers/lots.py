@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from .. import queries, services
 from ..db import get_db
+from ..mqtt_bridge import bridge
 from ..schemas import InspectionIn, LotOut, LotSummaryOut, LotTraceOut, ReceiveMaterialIn, ShipmentOut
 
 router = APIRouter(prefix="/lots", tags=["lots"])
@@ -31,7 +32,9 @@ def trace(lot_no: str, db: Db):
 
 @router.post("/{lot_id}/inspections", response_model=LotOut)
 def inspect(lot_id: int, body: InspectionIn, db: Db):
-    return services.inspect_lot(db, lot_id, body)
+    lot = services.inspect_lot(db, lot_id, body)
+    bridge.sync_all(db)
+    return lot
 
 
 @router.post("/{lot_id}/ship", response_model=ShipmentOut, status_code=status.HTTP_201_CREATED)

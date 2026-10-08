@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from .. import queries, services
 from ..db import get_db
+from ..mqtt_bridge import bridge
 from ..schemas import CancelWorkOrderIn, StartWorkIn, WorkOrderCreateIn, WorkOrderOut
 
 router = APIRouter(prefix="/work-orders", tags=["work-orders"])
@@ -23,7 +24,9 @@ def create_work_order(body: WorkOrderCreateIn, db: Db):
 
 @router.post("/{work_order_id}/start", response_model=WorkOrderOut)
 def start_work(work_order_id: int, body: StartWorkIn, db: Db):
-    return services.start_work(db, work_order_id, body.operator_id)
+    wo = services.start_work(db, work_order_id, body.operator_id)
+    bridge.sync_machine(db, wo.machine_id)
+    return wo
 
 
 @router.post("/{work_order_id}/cancel", response_model=WorkOrderOut)

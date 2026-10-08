@@ -114,31 +114,6 @@ class SensorReadingOut(Schema):
     recorded_at: datetime
 
 
-class HeartbeatIn(Schema):
-    work_order_id: int | None = None
-    produced_qty: int | None = Field(default=None, ge=0)
-    sensors: list[SensorValue] = []
-
-
-class JobOut(Schema):
-    work_order_id: int
-    wo_no: str
-    product_name: str
-    quantity: int
-    produced_qty: int
-    lot_no: str
-
-
-class HeartbeatOut(Schema):
-    machine_status: str
-    job: JobOut | None
-
-
-class JobCompleteIn(Schema):
-    work_order_id: int
-    produced_qty: int = Field(ge=0)
-
-
 class DashboardCounts(Schema):
     raw: int
     wip: int
