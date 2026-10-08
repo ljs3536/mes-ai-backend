@@ -15,6 +15,7 @@ class WorkOrderStatus(StrEnum):
     IN_PROGRESS = "IN_PROGRESS"
     COMPLETED = "COMPLETED"
     HOLD = "HOLD"
+    CANCELLED = "CANCELLED"
 
 
 class MachineStatus(StrEnum):

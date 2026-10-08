@@ -75,6 +75,18 @@ def create_work_order(db: Session, data: WorkOrderCreateIn) -> WorkOrder:
     return wo
 
 
+def cancel_work_order(db: Session, work_order_id: int, reason: str) -> WorkOrder:
+    """시작 전 작업지시만 취소한다. 이력 추적을 위해 행은 지우지 않고 번호도 재사용하지 않는다."""
+    wo = _get(db, WorkOrder, work_order_id, "작업지시")
+    if wo.status != WorkOrderStatus.PLANNED:
+        raise DomainError("대기(PLANNED) 상태 작업지시만 취소할 수 있습니다. 진행 중이면 설비를 먼저 정지하세요.")
+
+    wo.status = WorkOrderStatus.CANCELLED
+    _trace(db, wo.lot, "CANCEL", f"작업지시 {wo.wo_no} 취소 · 사유: {reason.strip()}")
+    db.commit()
+    return wo
+
+
 def start_work(db: Session, work_order_id: int, operator_id: int) -> WorkOrder:
     wo = _get(db, WorkOrder, work_order_id, "작업지시")
     operator = _get(db, Operator, operator_id, "작업자")

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from .. import queries, services
 from ..db import get_db
-from ..schemas import StartWorkIn, WorkOrderCreateIn, WorkOrderOut
+from ..schemas import CancelWorkOrderIn, StartWorkIn, WorkOrderCreateIn, WorkOrderOut
 
 router = APIRouter(prefix="/work-orders", tags=["work-orders"])
 Db = Annotated[Session, Depends(get_db)]
@@ -24,3 +24,8 @@ def create_work_order(body: WorkOrderCreateIn, db: Db):
 @router.post("/{work_order_id}/start", response_model=WorkOrderOut)
 def start_work(work_order_id: int, body: StartWorkIn, db: Db):
     return services.start_work(db, work_order_id, body.operator_id)
+
+
+@router.post("/{work_order_id}/cancel", response_model=WorkOrderOut)
+def cancel_work_order(work_order_id: int, body: CancelWorkOrderIn, db: Db):
+    return services.cancel_work_order(db, work_order_id, body.reason)

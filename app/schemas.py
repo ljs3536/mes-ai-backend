@@ -172,6 +172,10 @@ class StartWorkIn(Schema):
     operator_id: int
 
 
+class CancelWorkOrderIn(Schema):
+    reason: str = Field(min_length=1, max_length=200)
+
+
 class InspectionIn(Schema):
     result: Literal["PASS", "FAIL"]
     note: str | None = Field(default=None, max_length=255)
