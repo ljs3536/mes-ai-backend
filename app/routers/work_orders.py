@@ -8,6 +8,7 @@ from ..db import get_db
 from ..mqtt_bridge import bridge
 from ..schemas import CancelWorkOrderIn, StartWorkIn, WorkOrderCreateIn, WorkOrderOut
 
+# 작업지시 생성, 작업 시작, 예정 상태 취소. 취소는 삭제 대신 상태와 사유를 남긴다.
 router = APIRouter(prefix="/work-orders", tags=["work-orders"])
 Db = Annotated[Session, Depends(get_db)]
 

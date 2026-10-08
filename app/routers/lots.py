@@ -8,6 +8,7 @@ from ..db import get_db
 from ..mqtt_bridge import bridge
 from ..schemas import InspectionIn, LotOut, LotSummaryOut, LotTraceOut, ReceiveMaterialIn, ShipmentOut
 
+# 자재 LOT 입고, 품질 판정, 출하, LOT 이력 조회.
 router = APIRouter(prefix="/lots", tags=["lots"])
 Db = Annotated[Session, Depends(get_db)]
 

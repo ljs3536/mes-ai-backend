@@ -1,3 +1,14 @@
+"""MES 핵심 API.
+
+현재 기능:
+- 대시보드, 작업자 목록
+- 자재 LOT 입고와 LOT 이력
+- 작업지시 생성, 시작, 취소(예정 상태만, 행 삭제가 아님)
+- 설비 상태, 텔레메트리, 작업 보류와 재개
+- 설비에 PIEZO 센서를 연결하고 수집 설정을 저장
+- MQTT로 게이트웨이에 작업을 내리고 설비 상태를 받음
+"""
+
 import logging
 from contextlib import asynccontextmanager
 

@@ -11,6 +11,7 @@ from ..mqtt_bridge import bridge
 from ..schemas import MachineDetailOut, MachineOut, SensorReadingOut
 from ..services import DomainError
 
+# 설비 상태와 텔레메트리. 보류는 진행 중 작업을 멈추고, 코드 기준 보류는 분석 백엔드가 호출한다.
 router = APIRouter(prefix="/machines", tags=["machines"])
 Db = Annotated[Session, Depends(get_db)]
 

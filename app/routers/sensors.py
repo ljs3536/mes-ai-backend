@@ -9,6 +9,7 @@ from ..models import Machine, MachineSensor
 from ..schemas import MachineSensorIn, MachineSensorOut
 from ..services import DomainError
 
+# 설비와 PIEZO 센서의 연결. 수집 주기, 샘플레이트, 샘플 수, 파형 프리셋을 설비별로 저장한다.
 router = APIRouter(prefix="/sensors", tags=["sensors"])
 Db = Annotated[Session, Depends(get_db)]
 
