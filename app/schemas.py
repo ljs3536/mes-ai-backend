@@ -154,3 +154,33 @@ class CancelWorkOrderIn(Schema):
 class InspectionIn(Schema):
     result: Literal["PASS", "FAIL"]
     note: str | None = Field(default=None, max_length=255)
+
+
+class MachineSensorOut(Schema):
+    id: int
+    machine_code: str
+    code: str
+    name: str
+    sensor_type: str
+    mount: str
+    unit: str
+    sample_rate: int
+    n_samples: int
+    interval_s: int
+    preset: str
+    severity: float
+    enabled: bool
+
+
+class MachineSensorIn(Schema):
+    code: str = Field(min_length=1, max_length=32)
+    name: str = Field(min_length=1, max_length=64)
+    sensor_type: str = "PIEZO"
+    mount: str = Field(min_length=1, max_length=64)
+    unit: str = "g"
+    sample_rate: int = Field(ge=256, le=25600)
+    n_samples: int
+    interval_s: int = Field(ge=1, le=86400)
+    preset: str = "normal"
+    severity: float = Field(ge=0, le=1)
+    enabled: bool = True

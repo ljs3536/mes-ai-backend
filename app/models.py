@@ -11,6 +11,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -44,6 +45,30 @@ class Machine(Base):
 
     work_orders: Mapped[list["WorkOrder"]] = relationship(back_populates="machine")
     alerts: Mapped[list["Alert"]] = relationship(back_populates="machine")
+    sensors: Mapped[list["MachineSensor"]] = relationship(back_populates="machine")
+
+
+class MachineSensor(Base):
+    """설비에 부착된 센서. 진동 채널은 PIEZO(압전 가속도) 센서로 둔다."""
+
+    __tablename__ = "machine_sensors"
+    __table_args__ = (UniqueConstraint("machine_id", "code", name="uq_machine_sensor_code"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    machine_id: Mapped[int] = mapped_column(ForeignKey("machines.id"))
+    code: Mapped[str] = mapped_column(String(32))
+    name: Mapped[str] = mapped_column(String(64))
+    sensor_type: Mapped[str] = mapped_column(String(16))
+    mount: Mapped[str] = mapped_column(String(64))
+    unit: Mapped[str] = mapped_column(String(16))
+    sample_rate: Mapped[int] = mapped_column(Integer)
+    n_samples: Mapped[int] = mapped_column(Integer)
+    interval_s: Mapped[int] = mapped_column(Integer)
+    preset: Mapped[str] = mapped_column(String(32))
+    severity: Mapped[float] = mapped_column(Float)
+    enabled: Mapped[bool] = mapped_column(Boolean)
+
+    machine: Mapped[Machine] = relationship(back_populates="sensors")
 
 
 class Lot(TimestampMixin, Base):

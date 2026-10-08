@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .domain import InspectionResult, LotStatus, Location, MachineStatus, WorkOrderStatus
-from .models import Alert, Inspection, Lot, Machine, Operator, Shipment, TraceEvent, WorkOrder
+from .models import Alert, Inspection, Lot, Machine, MachineSensor, Operator, Shipment, TraceEvent, WorkOrder
 
 
 def seed_if_empty(db: Session) -> bool:
@@ -77,3 +77,43 @@ def seed_if_empty(db: Session) -> bool:
     )
     db.commit()
     return True
+
+
+SENSOR_DEFAULTS = (
+    ("MACHINE_A", "PIEZO_FRONT", "스핀들 전면 베어링", "PIEZO", "스핀들 전면 반경", "g", 2560, 1024, 3600, "normal", 0.2),
+    ("MACHINE_A", "PIEZO_REAR", "스핀들 후면 베어링", "PIEZO", "스핀들 후면 반경", "g", 2560, 1024, 3600, "normal", 0.15),
+    ("MACHINE_B", "PIEZO_FRONT", "스핀들 전면 베어링", "PIEZO", "스핀들 전면 반경", "g", 2560, 1024, 3600, "bearing_outer", 0.7),
+)
+
+
+def ensure_machine_sensors(db: Session) -> None:
+    """설비가 있는데 부착 센서가 없으면 PIEZO 기본 구성을 넣는다. 이미 있으면 건드리지 않는다."""
+    machines = {m.code: m for m in db.scalars(select(Machine))}
+    existing = {
+        (row.machine_id, row.code)
+        for row in db.scalars(select(MachineSensor))
+    }
+    added = False
+    for machine_code, code, name, sensor_type, mount, unit, rate, n, interval, preset, severity in SENSOR_DEFAULTS:
+        machine = machines.get(machine_code)
+        if machine is None or (machine.id, code) in existing:
+            continue
+        db.add(
+            MachineSensor(
+                machine_id=machine.id,
+                code=code,
+                name=name,
+                sensor_type=sensor_type,
+                mount=mount,
+                unit=unit,
+                sample_rate=rate,
+                n_samples=n,
+                interval_s=interval,
+                preset=preset,
+                severity=severity,
+                enabled=True,
+            )
+        )
+        added = True
+    if added:
+        db.commit()

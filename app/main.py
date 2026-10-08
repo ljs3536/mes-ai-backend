@@ -9,8 +9,8 @@ from sqlalchemy import text
 from .config import get_settings
 from .db import Base, SessionLocal, engine
 from .mqtt_bridge import bridge
-from .routers import lots, machines, overview, work_orders
-from .seed import seed_if_empty
+from .routers import lots, machines, overview, sensors, work_orders
+from .seed import ensure_machine_sensors, seed_if_empty
 from .services import DomainError
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -22,6 +22,7 @@ async def lifespan(_: FastAPI):
     if get_settings().seed_demo:
         with SessionLocal() as db:
             seed_if_empty(db)
+            ensure_machine_sensors(db)
     bridge.start()
     yield
     bridge.stop()
@@ -53,5 +54,5 @@ def readyz():
     return {"status": "ready", "mqtt": bool(bridge.client and bridge.client.is_connected())}
 
 
-for router in (overview.router, lots.router, work_orders.router, machines.router):
+for router in (overview.router, lots.router, work_orders.router, machines.router, sensors.router):
     app.include_router(router, prefix="/api")
