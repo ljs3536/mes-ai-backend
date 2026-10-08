@@ -3,7 +3,7 @@
 부품/설비 가공 공장 MES Core API (FastAPI + SQLAlchemy 2 + MariaDB).
 
 시나리오: 자재 입고(LOT 발행) → 작업지시 → 작업 시작(WIP) → 설비 가공/진행 보고 → 가공 완료(PROCESSED) → 품질 판정 → 출하 → 이력 추적.
-2단계 AI 이상감지는 `services.hold_machine()`을 호출해 설비 STOP + LOT HOLD를 재사용하도록 설계했습니다.
+AI 이상감지는 `services.hold_machine()`을 호출한다. 상태 전이의 개선 기준과 사용자 실행 단계는 [README.txt](README.txt)에 있다.
 
 ## 구조
 
