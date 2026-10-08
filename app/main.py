@@ -7,7 +7,7 @@ from sqlalchemy import text
 
 from .config import get_settings
 from .db import Base, SessionLocal, engine
-from .routers import lots, machines, overview, work_orders
+from .routers import gateway, lots, machines, overview, work_orders
 from .seed import seed_if_empty
 from .services import DomainError
 
@@ -47,5 +47,5 @@ def readyz():
     return {"status": "ready"}
 
 
-for router in (overview.router, lots.router, work_orders.router, machines.router):
+for router in (overview.router, lots.router, work_orders.router, machines.router, gateway.router):
     app.include_router(router, prefix="/api")

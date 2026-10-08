@@ -72,6 +72,8 @@ class WorkOrderOut(Schema):
     quantity: int
     status: str
     started_at: datetime | None
+    produced_qty: int
+    completed_at: datetime | None
     created_at: datetime
     machine: MachineOut
     lot: LotOut
@@ -90,14 +92,57 @@ class LotTraceOut(LotOut):
     events: list[TraceEventOut]
 
 
+class SensorValue(Schema):
+    code: str = Field(min_length=1, max_length=32)
+    value: float
+    unit: str = Field(default="", max_length=16)
+
+
 class MachineDetailOut(MachineOut):
     active_work_order: WorkOrderOut | None
     open_alerts: list[AlertOut]
+    online: bool
+    last_seen_at: datetime | None
+    sensors: list[SensorValue]
+
+
+class SensorReadingOut(Schema):
+    sensor_code: str
+    value: float
+    unit: str
+    work_order_id: int | None
+    recorded_at: datetime
+
+
+class HeartbeatIn(Schema):
+    work_order_id: int | None = None
+    produced_qty: int | None = Field(default=None, ge=0)
+    sensors: list[SensorValue] = []
+
+
+class JobOut(Schema):
+    work_order_id: int
+    wo_no: str
+    product_name: str
+    quantity: int
+    produced_qty: int
+    lot_no: str
+
+
+class HeartbeatOut(Schema):
+    machine_status: str
+    job: JobOut | None
+
+
+class JobCompleteIn(Schema):
+    work_order_id: int
+    produced_qty: int = Field(ge=0)
 
 
 class DashboardCounts(Schema):
     raw: int
     wip: int
+    processed: int
     hold: int
     stock: int
     shipped: int

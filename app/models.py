@@ -1,6 +1,18 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -27,6 +39,8 @@ class Machine(Base):
     name: Mapped[str] = mapped_column(String(64))
     type: Mapped[str] = mapped_column(String(32))
     status: Mapped[str] = mapped_column(String(16), index=True)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_telemetry: Mapped[list[dict] | None] = mapped_column(JSON)
 
     work_orders: Mapped[list["WorkOrder"]] = relationship(back_populates="machine")
     alerts: Mapped[list["Alert"]] = relationship(back_populates="machine")
@@ -69,6 +83,8 @@ class WorkOrder(TimestampMixin, Base):
     lot_id: Mapped[int] = mapped_column(ForeignKey("lots.id"))
     operator_id: Mapped[int | None] = mapped_column(ForeignKey("operators.id"))
     started_at: Mapped[datetime | None] = mapped_column(DateTime)
+    produced_qty: Mapped[int] = mapped_column(Integer, default=0)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     machine: Mapped[Machine] = relationship(back_populates="work_orders")
     lot: Mapped[Lot] = relationship(back_populates="work_orders")
@@ -106,6 +122,21 @@ class TraceEvent(TimestampMixin, Base):
     message: Mapped[str] = mapped_column(Text)
 
     lot: Mapped[Lot] = relationship(back_populates="events")
+
+
+class SensorReading(Base):
+    """설비 센서 원시값 (long format). 3단계에서 시계열 DB로 이관 예정."""
+
+    __tablename__ = "sensor_readings"
+    __table_args__ = (Index("ix_sensor_readings_machine_time", "machine_id", "recorded_at"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    machine_id: Mapped[int] = mapped_column(ForeignKey("machines.id"))
+    work_order_id: Mapped[int | None] = mapped_column(ForeignKey("work_orders.id"))
+    sensor_code: Mapped[str] = mapped_column(String(32))
+    value: Mapped[float] = mapped_column(Float)
+    unit: Mapped[str] = mapped_column(String(16))
+    recorded_at: Mapped[datetime] = mapped_column(DateTime)
 
 
 class Alert(TimestampMixin, Base):

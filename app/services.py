@@ -29,7 +29,7 @@ def _trace(db: Session, lot: Lot, type_: str, message: str) -> None:
     db.add(TraceEvent(lot_id=lot.id, type=type_, message=message))
 
 
-def _active_work_order(db: Session, machine_id: int) -> WorkOrder | None:
+def active_work_order(db: Session, machine_id: int) -> WorkOrder | None:
     return db.scalar(
         select(WorkOrder).where(
             WorkOrder.machine_id == machine_id,
@@ -99,7 +99,7 @@ def start_work(db: Session, work_order_id: int, operator_id: int) -> WorkOrder:
 def hold_machine(db: Session, machine_id: int, reason: str = "수동 정지") -> Machine:
     """설비 STOP + 진행 LOT HOLD + 알림. 2단계 AI 이상감지도 이 함수를 호출한다."""
     machine = _get(db, Machine, machine_id, "설비")
-    wo = _active_work_order(db, machine_id)
+    wo = active_work_order(db, machine_id)
     if wo is None:
         raise DomainError("가동 중인 작업이 없습니다.")
 
@@ -134,8 +134,8 @@ def resume_machine(db: Session, machine_id: int) -> Machine:
 
 def inspect_lot(db: Session, lot_id: int, data: InspectionIn) -> Lot:
     lot = _get(db, Lot, lot_id, "LOT")
-    if lot.status not in (LotStatus.WIP, LotStatus.HOLD):
-        raise DomainError("가공중/검사대기 LOT만 품질 판정할 수 있습니다.")
+    if lot.status not in (LotStatus.WIP, LotStatus.PROCESSED, LotStatus.HOLD):
+        raise DomainError("가공중/가공완료/검사대기 LOT만 품질 판정할 수 있습니다.")
 
     passed = data.result == InspectionResult.PASS
     db.add(Inspection(lot_id=lot.id, result=data.result, note=(data.note or "").strip() or None))

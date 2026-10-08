@@ -1,8 +1,11 @@
+from datetime import datetime, timedelta
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
+from .config import get_settings
 from .domain import LotStatus, MachineStatus, WorkOrderStatus
-from .models import Alert, Lot, Machine, Operator, WorkOrder
+from .models import Alert, Lot, Machine, Operator, SensorReading, WorkOrder
 from .schemas import (
     AlertOut,
     DashboardCounts,
@@ -67,14 +70,30 @@ def list_machines(db: Session) -> list[MachineDetailOut]:
         for wo in reversed(list_work_orders(db, [WorkOrderStatus.IN_PROGRESS, WorkOrderStatus.HOLD]))
         if wo.machine.status != MachineStatus.IDLE
     }
+    offline_after = timedelta(seconds=get_settings().machine_offline_after_seconds)
+    now = datetime.now()
     return [
         MachineDetailOut(
             **MachineOut.model_validate(m).model_dump(),
             active_work_order=WorkOrderOut.model_validate(active[m.id]) if m.id in active else None,
             open_alerts=[AlertOut.model_validate(a) for a in sorted(m.alerts, key=lambda a: -a.id) if not a.acknowledged],
+            online=m.last_seen_at is not None and now - m.last_seen_at < offline_after,
+            last_seen_at=m.last_seen_at,
+            sensors=m.last_telemetry or [],
         )
         for m in machines
     ]
+
+
+def recent_readings(db: Session, machine_id: int, minutes: int) -> list[SensorReading]:
+    since = datetime.now() - timedelta(minutes=minutes)
+    return list(
+        db.scalars(
+            select(SensorReading)
+            .where(SensorReading.machine_id == machine_id, SensorReading.recorded_at >= since)
+            .order_by(SensorReading.recorded_at, SensorReading.id)
+        )
+    )
 
 
 def dashboard(db: Session) -> DashboardOut:
@@ -86,6 +105,7 @@ def dashboard(db: Session) -> DashboardOut:
         counts=DashboardCounts(
             raw=by_status.get(LotStatus.RAW, 0),
             wip=by_status.get(LotStatus.WIP, 0),
+            processed=by_status.get(LotStatus.PROCESSED, 0),
             hold=by_status.get(LotStatus.HOLD, 0),
             stock=by_status.get(LotStatus.IN_STOCK, 0),
             shipped=by_status.get(LotStatus.SHIPPED, 0),
