@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     mqtt_enabled: bool = True
     mqtt_host: str = "localhost"
     mqtt_port: int = 1883
+    mqtt_username: str = ""
+    mqtt_password: str = ""
     mqtt_topic_prefix: str = "mes"
     machine_offline_after_seconds: int = 10
     timezone: str = "Asia/Seoul"
