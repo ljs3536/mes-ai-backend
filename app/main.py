@@ -1,6 +1,7 @@
 """MES 핵심 API.
 
 현재 기능:
+- 사원 로그인. 관리자는 사원 등록, 이력 조회, 센서 변경을 한다
 - 대시보드, 작업자 목록
 - 자재 LOT 입고와 LOT 이력
 - 작업지시 생성, 시작, 취소(예정 상태만, 행 삭제가 아님)
@@ -17,10 +18,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
+from .auth import ensure_operator_auth
 from .config import get_settings
 from .db import Base, SessionLocal, engine
 from .mqtt_bridge import bridge
-from .routers import lots, machines, overview, sensors, work_orders
+from .routers import auth, lots, machines, operators, overview, sensors, work_orders
 from .seed import ensure_machine_sensors, seed_if_empty
 from .services import DomainError
 
@@ -30,6 +32,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     Base.metadata.create_all(engine)
+    with SessionLocal() as db:
+        ensure_operator_auth(db)
     if get_settings().seed_demo:
         with SessionLocal() as db:
             seed_if_empty(db)
@@ -65,5 +69,5 @@ def readyz():
     return {"status": "ready", "mqtt": bool(bridge.client and bridge.client.is_connected())}
 
 
-for router in (overview.router, lots.router, work_orders.router, machines.router, sensors.router):
+for router in (auth.router, operators.router, overview.router, lots.router, work_orders.router, machines.router, sensors.router):
     app.include_router(router, prefix="/api")

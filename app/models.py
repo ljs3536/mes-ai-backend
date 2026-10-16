@@ -30,6 +30,7 @@ class Operator(Base):
     employee_no: Mapped[str] = mapped_column(String(32), unique=True)
     name: Mapped[str] = mapped_column(String(64))
     role: Mapped[str] = mapped_column(String(16))
+    password_hash: Mapped[str | None] = mapped_column(String(255))
 
 
 class Machine(Base):

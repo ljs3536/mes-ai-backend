@@ -5,8 +5,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import queries, services
+from ..auth import require_user
 from ..db import get_db
-from ..models import Machine
+from ..models import Machine, Operator
 from ..mqtt_bridge import bridge
 from ..schemas import MachineDetailOut, MachineOut, SensorReadingOut
 from ..services import DomainError
@@ -14,15 +15,16 @@ from ..services import DomainError
 # 설비 상태와 텔레메트리. 보류는 진행 중 작업을 멈추고, 코드 기준 보류는 분석 백엔드가 호출한다.
 router = APIRouter(prefix="/machines", tags=["machines"])
 Db = Annotated[Session, Depends(get_db)]
+User = Annotated[Operator, Depends(require_user)]
 
 
 @router.get("", response_model=list[MachineDetailOut])
-def list_machines(db: Db):
+def list_machines(db: Db, _: User):
     return queries.list_machines(db)
 
 
 @router.get("/{machine_id}/telemetry", response_model=list[SensorReadingOut])
-def telemetry(machine_id: int, db: Db, minutes: Annotated[int, Query(ge=1, le=60)] = 5):
+def telemetry(machine_id: int, db: Db, _: User, minutes: Annotated[int, Query(ge=1, le=60)] = 5):
     return queries.recent_readings(db, machine_id, minutes)
 
 
@@ -38,14 +40,14 @@ def hold_by_code(code: str, db: Db, reason: Annotated[str, Query(min_length=1, m
 
 
 @router.post("/{machine_id}/hold", response_model=MachineOut)
-def hold(machine_id: int, db: Db):
+def hold(machine_id: int, db: Db, _: User):
     machine = services.hold_machine(db, machine_id)
     bridge.publish_job(db, machine)
     return machine
 
 
 @router.post("/{machine_id}/resume", response_model=MachineOut)
-def resume(machine_id: int, db: Db):
+def resume(machine_id: int, db: Db, _: User):
     machine = services.resume_machine(db, machine_id)
     bridge.publish_job(db, machine)
     return machine

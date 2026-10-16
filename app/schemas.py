@@ -16,6 +16,29 @@ class OperatorOut(Schema):
     role: str
 
 
+class LoginIn(Schema):
+    employee_no: str = Field(min_length=1, max_length=32)
+    password: str = Field(min_length=1, max_length=72)
+
+
+class LoginOut(Schema):
+    token: str
+    operator: OperatorOut
+
+
+class OperatorCreateIn(Schema):
+    employee_no: str = Field(min_length=1, max_length=32)
+    name: str = Field(min_length=1, max_length=64)
+    role: Literal["ADMIN", "OPERATOR"]
+    password: str = Field(min_length=4, max_length=72)
+
+
+class OperatorUpdateIn(Schema):
+    name: str = Field(min_length=1, max_length=64)
+    role: Literal["ADMIN", "OPERATOR"]
+    password: str | None = Field(default=None, max_length=72)
+
+
 class MachineOut(Schema):
     id: int
     code: str

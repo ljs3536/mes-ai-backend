@@ -4,14 +4,17 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..auth import require_admin
 from ..db import get_db
-from ..models import Machine, MachineSensor
+from ..models import Machine, MachineSensor, Operator
 from ..schemas import MachineSensorIn, MachineSensorOut
 from ..services import DomainError
 
 # 설비와 PIEZO 센서의 연결. 수집 주기, 샘플레이트, 샘플 수, 파형 프리셋을 설비별로 저장한다.
+# 목록 조회는 에뮬레이터가 쓰고, 추가와 변경은 관리자만 한다.
 router = APIRouter(prefix="/sensors", tags=["sensors"])
 Db = Annotated[Session, Depends(get_db)]
+Admin = Annotated[Operator, Depends(require_admin)]
 
 ALLOWED_N = {256, 512, 1024, 2048, 4096, 8192}
 
@@ -50,7 +53,7 @@ def list_sensors(db: Db, machine: Annotated[str | None, Query()] = None):
 
 
 @router.post("", response_model=MachineSensorOut, status_code=201)
-def create_sensor(data: MachineSensorIn, db: Db, machine: Annotated[str, Query()]):
+def create_sensor(data: MachineSensorIn, db: Db, _: Admin, machine: Annotated[str, Query()]):
     _check(data)
     row = db.scalar(select(Machine).where(Machine.code == machine))
     if row is None:
@@ -68,7 +71,7 @@ def create_sensor(data: MachineSensorIn, db: Db, machine: Annotated[str, Query()
 
 
 @router.put("/{sensor_id}", response_model=MachineSensorOut)
-def update_sensor(sensor_id: int, data: MachineSensorIn, db: Db):
+def update_sensor(sensor_id: int, data: MachineSensorIn, db: Db, _: Admin):
     _check(data)
     sensor = db.get(MachineSensor, sensor_id)
     if sensor is None:
@@ -91,7 +94,7 @@ def update_sensor(sensor_id: int, data: MachineSensorIn, db: Db):
 
 
 @router.delete("/{sensor_id}", status_code=204)
-def delete_sensor(sensor_id: int, db: Db):
+def delete_sensor(sensor_id: int, db: Db, _: Admin):
     sensor = db.get(MachineSensor, sensor_id)
     if sensor is None:
         raise DomainError("센서를 찾을 수 없습니다.", 404)

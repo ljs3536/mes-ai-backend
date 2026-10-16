@@ -3,6 +3,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .auth import default_password, hash_password
 from .domain import InspectionResult, LotStatus, Location, MachineStatus, WorkOrderStatus
 from .models import Alert, Inspection, Lot, Machine, MachineSensor, Operator, Shipment, TraceEvent, WorkOrder
 
@@ -13,9 +14,9 @@ def seed_if_empty(db: Session) -> bool:
 
     db.add_all(
         [
-            Operator(employee_no="ADMIN-001", name="김관리", role="ADMIN"),
-            Operator(employee_no="OP-001", name="이민준", role="OPERATOR"),
-            Operator(employee_no="OP-002", name="박서연", role="OPERATOR"),
+            Operator(employee_no="ADMIN-001", name="김관리", role="ADMIN", password_hash=hash_password(default_password("ADMIN"))),
+            Operator(employee_no="OP-001", name="이민준", role="OPERATOR", password_hash=hash_password(default_password("OPERATOR"))),
+            Operator(employee_no="OP-002", name="박서연", role="OPERATOR", password_hash=hash_password(default_password("OPERATOR"))),
         ]
     )
     machine_a = Machine(code="MACHINE_A", name="Machine A", type="CNC", status=MachineStatus.IDLE)

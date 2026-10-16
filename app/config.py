@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     mqtt_topic_prefix: str = "mes"
     machine_offline_after_seconds: int = 10
     timezone: str = "Asia/Seoul"
+    auth_secret: str = "mes-local-session"
 
 
 @lru_cache
