@@ -8,7 +8,18 @@ from sqlalchemy.orm import Session
 
 from .auth import default_password, hash_password
 from .domain import InspectionResult, LotStatus, Location, MachineStatus, WorkOrderStatus
-from .models import Alert, Inspection, Lot, Machine, MachineSensor, Operator, Shipment, TraceEvent, WorkOrder
+from .models import (
+    Alert,
+    Inspection,
+    InspectionSpec,
+    Lot,
+    Machine,
+    MachineSensor,
+    Operator,
+    Shipment,
+    TraceEvent,
+    WorkOrder,
+)
 
 
 def seed_if_empty(db: Session) -> bool:
@@ -174,3 +185,18 @@ def ensure_machine_sensors(db: Session) -> None:
         added = True
     if added:
         db.commit()
+
+
+def ensure_inspection_specs(db: Session) -> None:
+    """검사 기준이 하나도 없으면 데모 품목의 외경과 길이를 넣는다."""
+    if db.scalar(select(InspectionSpec.id).limit(1)) is not None:
+        return
+    db.add_all(
+        [
+            InspectionSpec(material_name="특수 강재", name="외경", unit="mm", lower_limit=9.95, upper_limit=10.05),
+            InspectionSpec(material_name="특수 강재", name="길이", unit="mm", lower_limit=49.9, upper_limit=50.1),
+            InspectionSpec(material_name="센서 하우징", name="외경", unit="mm", lower_limit=19.9, upper_limit=20.1),
+            InspectionSpec(material_name="센서 하우징", name="길이", unit="mm", lower_limit=29.9, upper_limit=30.1),
+        ]
+    )
+    db.commit()

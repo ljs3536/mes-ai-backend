@@ -11,7 +11,18 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .domain import Disposition, InspectionResult, LotStatus, Location, MachineStatus, WorkOrderStatus
-from .models import Alert, Inspection, Lot, Machine, Operator, Shipment, TraceEvent, WorkOrder
+from .models import (
+    Alert,
+    Inspection,
+    InspectionReading,
+    InspectionSpec,
+    Lot,
+    Machine,
+    Operator,
+    Shipment,
+    TraceEvent,
+    WorkOrder,
+)
 from .schemas import InspectionIn, ReceiveMaterialIn, WorkOrderCreateIn
 from .serials import next_serial
 
@@ -204,14 +215,78 @@ def resume_machine(db: Session, machine_id: int) -> Machine:
     return machine
 
 
+def list_inspection_specs(db: Session) -> list[InspectionSpec]:
+    return list(db.scalars(select(InspectionSpec).order_by(InspectionSpec.material_name, InspectionSpec.id)))
+
+
+def create_inspection_spec(db: Session, data) -> InspectionSpec:
+    if data.lower_limit > data.upper_limit:
+        raise DomainError("하한이 상한보다 큽니다.")
+    name = data.material_name.strip()
+    item = data.name.strip()
+    taken = db.scalar(
+        select(InspectionSpec.id).where(InspectionSpec.material_name == name, InspectionSpec.name == item)
+    )
+    if taken is not None:
+        raise DomainError("같은 품목에 같은 검사 항목이 있습니다.", 409)
+    spec = InspectionSpec(
+        material_name=name,
+        name=item,
+        unit=data.unit.strip(),
+        lower_limit=data.lower_limit,
+        upper_limit=data.upper_limit,
+    )
+    db.add(spec)
+    db.commit()
+    db.refresh(spec)
+    return spec
+
+
+def delete_inspection_spec(db: Session, spec_id: int) -> None:
+    spec = _get(db, InspectionSpec, spec_id, "검사 기준")
+    used = db.scalar(select(InspectionReading.id).where(InspectionReading.spec_id == spec.id).limit(1))
+    if used is not None:
+        raise DomainError("이미 실측이 남은 검사 기준은 지울 수 없습니다.", 409)
+    db.delete(spec)
+    db.commit()
+
+
 def inspect_lot(db: Session, lot_id: int, data: InspectionIn) -> Lot:
-    """가공완료 수량을 합격과 불량으로 나눈다. 불량은 재가공 LOT가 되거나 폐기된다."""
+    """검사 기준과 실측을 비교한다. 공차 밖 실측 수가 불량 수량이고, 불량은 재가공 또는 폐기다."""
     lot = _get(db, Lot, lot_id, "LOT")
     if lot.status != LotStatus.PROCESSED:
         raise DomainError("가공완료(PROCESSED) LOT만 품질 판정할 수 있습니다.")
-    if data.good_qty + data.defect_qty != lot.quantity:
-        raise DomainError(f"합격과 불량 수량의 합이 생산 수량 {lot.quantity}ea와 같아야 합니다.")
-    if data.defect_qty == 0:
+    specs = list(
+        db.scalars(select(InspectionSpec).where(InspectionSpec.material_name == lot.material_name).order_by(InspectionSpec.id))
+    )
+    if not specs:
+        raise DomainError("이 품목의 검사 기준이 없습니다. 관리자에게 기준 등록을 요청하세요.")
+    by_spec: dict[int, list[float]] = {spec.id: [] for spec in specs}
+    known = {spec.id for spec in specs}
+    for reading in data.readings:
+        if reading.spec_id not in known:
+            raise DomainError("이 품목의 검사 항목이 아닙니다.")
+        by_spec[reading.spec_id].append(reading.value)
+    missing = [spec.name for spec in specs if not by_spec[spec.id]]
+    if missing:
+        raise DomainError(f"실측값이 없습니다: {', '.join(missing)}")
+    limits = {spec.id: spec for spec in specs}
+    ng_counts = []
+    judged: list[tuple[int, float, bool]] = []
+    for spec_id, values in by_spec.items():
+        spec = limits[spec_id]
+        ng = 0
+        for value in values:
+            ok = spec.lower_limit <= value <= spec.upper_limit
+            judged.append((spec_id, value, ok))
+            if not ok:
+                ng += 1
+        ng_counts.append(ng)
+    defect_qty = max(ng_counts)
+    if defect_qty > lot.quantity:
+        raise DomainError(f"공차 밖 실측 {defect_qty}개가 생산 수량 {lot.quantity}ea보다 많습니다.")
+    good_qty = lot.quantity - defect_qty
+    if defect_qty == 0:
         if data.disposition:
             raise DomainError("불량이 없으면 처리를 고르지 않습니다.")
         result = InspectionResult.PASS
@@ -222,48 +297,52 @@ def inspect_lot(db: Session, lot_id: int, data: InspectionIn) -> Lot:
         result = InspectionResult.FAIL
         disposition = data.disposition
 
-    db.add(
-        Inspection(
-            lot_id=lot.id,
-            result=result,
-            good_qty=data.good_qty,
-            defect_qty=data.defect_qty,
-            disposition=disposition,
-            note=(data.note or "").strip() or None,
-        )
+    inspection = Inspection(
+        lot_id=lot.id,
+        result=result,
+        good_qty=good_qty,
+        defect_qty=defect_qty,
+        disposition=disposition,
+        note=(data.note or "").strip() or None,
     )
-    if data.defect_qty == 0:
+    db.add(inspection)
+    db.flush()
+    db.add_all(
+        InspectionReading(inspection_id=inspection.id, spec_id=spec_id, value=value, within_spec=ok)
+        for spec_id, value, ok in judged
+    )
+    if defect_qty == 0:
         lot.status = LotStatus.IN_STOCK
         lot.location = Location.FINISHED_WAREHOUSE
-        message = f"품질 합격 {data.good_qty}ea"
-    elif disposition == Disposition.SCRAP and data.good_qty == 0:
+        message = f"품질 합격 {good_qty}ea"
+    elif disposition == Disposition.SCRAP and good_qty == 0:
         lot.status = LotStatus.SCRAPPED
         lot.location = Location.SCRAP
-        message = f"전량 폐기 {data.defect_qty}ea"
+        message = f"전량 폐기 {defect_qty}ea"
     elif disposition == Disposition.SCRAP:
-        lot.quantity = data.good_qty
+        lot.quantity = good_qty
         lot.status = LotStatus.IN_STOCK
         lot.location = Location.FINISHED_WAREHOUSE
-        message = f"합격 {data.good_qty}ea 완제품, 폐기 {data.defect_qty}ea"
-    elif data.good_qty == 0:
+        message = f"합격 {good_qty}ea 완제품, 폐기 {defect_qty}ea"
+    elif good_qty == 0:
         lot.status = LotStatus.RAW
         lot.location = Location.REWORK
-        message = f"전량 재가공 {data.defect_qty}ea"
+        message = f"전량 재가공 {defect_qty}ea"
     else:
         child = Lot(
             lot_no=next_serial(db, Lot.lot_no, "RAW"),
             material_name=lot.material_name,
-            quantity=data.defect_qty,
+            quantity=defect_qty,
             status=LotStatus.RAW,
             location=Location.REWORK,
         )
         db.add(child)
         db.flush()
-        lot.quantity = data.good_qty
+        lot.quantity = good_qty
         lot.status = LotStatus.IN_STOCK
         lot.location = Location.FINISHED_WAREHOUSE
-        _trace(db, child, "REWORK", f"{lot.lot_no} 검사에서 재가공으로 나뉜 {data.defect_qty}ea")
-        message = f"합격 {data.good_qty}ea 완제품, 재가공 {data.defect_qty}ea는 {child.lot_no}"
+        _trace(db, child, "REWORK", f"{lot.lot_no} 검사에서 재가공으로 나뉜 {defect_qty}ea")
+        message = f"합격 {good_qty}ea 완제품, 재가공 {defect_qty}ea는 {child.lot_no}"
     _trace(db, lot, "QUALITY", message)
     db.commit()
     return lot

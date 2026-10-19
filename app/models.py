@@ -132,6 +132,36 @@ class Inspection(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(String(255))
 
     lot: Mapped[Lot] = relationship(back_populates="inspections")
+    readings: Mapped[list["InspectionReading"]] = relationship(back_populates="inspection")
+
+
+class InspectionSpec(Base):
+    """품목별 검사 항목. 실측값이 하한과 상한 밖이면 불량으로 센다."""
+
+    __tablename__ = "inspection_specs"
+    __table_args__ = (UniqueConstraint("material_name", "name", name="uq_inspection_spec"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    material_name: Mapped[str] = mapped_column(String(128), index=True)
+    name: Mapped[str] = mapped_column(String(64))
+    unit: Mapped[str] = mapped_column(String(16))
+    lower_limit: Mapped[float] = mapped_column(Float)
+    upper_limit: Mapped[float] = mapped_column(Float)
+
+
+class InspectionReading(Base):
+    """검사 때 남긴 실측값 한 건."""
+
+    __tablename__ = "inspection_readings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    inspection_id: Mapped[int] = mapped_column(ForeignKey("inspections.id"))
+    spec_id: Mapped[int] = mapped_column(ForeignKey("inspection_specs.id"))
+    value: Mapped[float] = mapped_column(Float)
+    within_spec: Mapped[bool] = mapped_column(Boolean)
+
+    inspection: Mapped[Inspection] = relationship(back_populates="readings")
+    spec: Mapped[InspectionSpec] = relationship()
 
 
 class Shipment(TimestampMixin, Base):

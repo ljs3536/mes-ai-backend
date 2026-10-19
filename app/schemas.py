@@ -184,9 +184,30 @@ class CancelWorkOrderIn(Schema):
     reason: str = Field(min_length=1, max_length=200)
 
 
+class InspectionSpecOut(Schema):
+    id: int
+    material_name: str
+    name: str
+    unit: str
+    lower_limit: float
+    upper_limit: float
+
+
+class InspectionSpecIn(Schema):
+    material_name: str = Field(min_length=1, max_length=128)
+    name: str = Field(min_length=1, max_length=64)
+    unit: str = Field(min_length=1, max_length=16)
+    lower_limit: float
+    upper_limit: float
+
+
+class ReadingIn(Schema):
+    spec_id: int
+    value: float
+
+
 class InspectionIn(Schema):
-    good_qty: int = Field(ge=0)
-    defect_qty: int = Field(ge=0)
+    readings: list[ReadingIn] = Field(min_length=1)
     disposition: Literal["REWORK", "SCRAP"] | None = None
     note: str | None = Field(default=None, max_length=255)
 
