@@ -1,4 +1,4 @@
-"""사원 비밀번호와 로그인 토큰. 관리자만 이력 조회와 센서 변경을 한다."""
+"""사원 비밀번호와 로그인 토큰. 화면과 API는 직무로 나눈다."""
 
 import hashlib
 import hmac
@@ -16,7 +16,11 @@ from .models import Operator
 
 TOKEN_TTL_SECONDS = 12 * 60 * 60
 ADMIN = "ADMIN"
+MATERIAL = "MATERIAL"
+PLANNER = "PLANNER"
 OPERATOR = "OPERATOR"
+QUALITY = "QUALITY"
+ROLES = (ADMIN, MATERIAL, PLANNER, OPERATOR, QUALITY)
 
 
 def hash_password(password: str) -> str:
@@ -75,8 +79,25 @@ def require_admin(user: Annotated[Operator, Depends(require_user)]) -> Operator:
     return user
 
 
+def require_role(*roles: str):
+    """지정한 직무만 이 의존성을 통과한다."""
+
+    def dependency(user: Annotated[Operator, Depends(require_user)]) -> Operator:
+        if user.role not in roles:
+            raise HTTPException(403, "이 직무로는 할 수 없습니다.")
+        return user
+
+    return dependency
+
+
 def default_password(role: str) -> str:
-    return "admin1234" if role == ADMIN else "work1234"
+    return {
+        ADMIN: "admin1234",
+        MATERIAL: "mat1234",
+        PLANNER: "plan1234",
+        OPERATOR: "work1234",
+        QUALITY: "qual1234",
+    }.get(role, "work1234")
 
 
 def ensure_operator_auth(db: Session) -> None:

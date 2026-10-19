@@ -9,11 +9,15 @@ class Schema(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, from_attributes=True)
 
 
+RoleName = Literal["ADMIN", "MATERIAL", "PLANNER", "OPERATOR", "QUALITY"]
+
+
 class OperatorOut(Schema):
     id: int
     employee_no: str
     name: str
     role: str
+    machine_id: int | None = None
 
 
 class LoginIn(Schema):
@@ -29,14 +33,16 @@ class LoginOut(Schema):
 class OperatorCreateIn(Schema):
     employee_no: str = Field(min_length=1, max_length=32)
     name: str = Field(min_length=1, max_length=64)
-    role: Literal["ADMIN", "OPERATOR"]
+    role: RoleName
     password: str = Field(min_length=4, max_length=72)
+    machine_id: int | None = None
 
 
 class OperatorUpdateIn(Schema):
     name: str = Field(min_length=1, max_length=64)
-    role: Literal["ADMIN", "OPERATOR"]
+    role: RoleName
     password: str | None = Field(default=None, max_length=72)
+    machine_id: int | None = None
 
 
 class MachineOut(Schema):
@@ -70,6 +76,9 @@ class LotOut(Schema):
 class InspectionOut(Schema):
     id: int
     result: str
+    good_qty: int | None = None
+    defect_qty: int | None = None
+    disposition: str | None = None
     note: str | None
     created_at: datetime
 
@@ -144,6 +153,7 @@ class DashboardCounts(Schema):
     hold: int
     stock: int
     shipped: int
+    scrapped: int
     running: int
 
 
@@ -175,7 +185,9 @@ class CancelWorkOrderIn(Schema):
 
 
 class InspectionIn(Schema):
-    result: Literal["PASS", "FAIL"]
+    good_qty: int = Field(ge=0)
+    defect_qty: int = Field(ge=0)
+    disposition: Literal["REWORK", "SCRAP"] | None = None
     note: str | None = Field(default=None, max_length=255)
 
 

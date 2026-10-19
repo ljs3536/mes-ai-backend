@@ -91,6 +91,7 @@ def complete_job(db: Session, machine: Machine, work_order_id: int, produced_qty
     wo.produced_qty = min(produced_qty, wo.quantity)
     wo.status = WorkOrderStatus.COMPLETED
     wo.completed_at = datetime.now()
+    wo.lot.quantity = wo.produced_qty
     wo.lot.status = LotStatus.PROCESSED
     wo.lot.location = Location.INSPECTION_WAIT
     machine.status = MachineStatus.IDLE

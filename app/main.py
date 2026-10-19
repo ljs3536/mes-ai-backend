@@ -1,11 +1,11 @@
 """MES 핵심 API.
 
 현재 기능:
-- 사원 로그인. 관리자는 사원 등록, 이력 조회, 센서 변경을 한다
-- 대시보드, 작업자 목록
+- 사원 로그인. 관리자가 직무를 정하고, 작업자는 담당 설비에 연결한다
+- 대시보드와 사원 목록은 관리자, 입고와 출하는 자재, 작업지시 발행은 생산관리
+- 작업 시작과 설비 정지·재개는 배정된 작업자. 품질은 합격·불량 수량을 나누고 불량은 재가공 또는 폐기한다
 - 자재 LOT 입고와 LOT 이력
-- 작업지시 생성, 시작, 취소(예정 상태만, 행 삭제가 아님)
-- 설비 상태, 텔레메트리, 작업 보류와 재개
+- 설비 상태와 텔레메트리. 정지는 가공을 멈추고 재개는 같은 작업을 잇는다. 품질 보류는 검사 불합격만 한다
 - 설비에 PIEZO 센서를 연결하고 수집 설정을 저장
 - MQTT로 게이트웨이에 작업을 내리고 설비 상태를 받음. 계정이 있으면 그 계정으로 접속한다
 """
@@ -23,7 +23,13 @@ from .config import get_settings
 from .db import Base, SessionLocal, engine
 from .mqtt_bridge import bridge
 from .routers import auth, lots, machines, operators, overview, sensors, work_orders
-from .seed import ensure_machine_sensors, seed_if_empty
+from .seed import (
+    ensure_inspection_quantities,
+    ensure_job_roles,
+    ensure_machine_sensors,
+    ensure_operator_machine_column,
+    seed_if_empty,
+)
 from .services import DomainError
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -33,11 +39,14 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 async def lifespan(_: FastAPI):
     Base.metadata.create_all(engine)
     with SessionLocal() as db:
+        ensure_operator_machine_column(db)
+        ensure_inspection_quantities(db)
         ensure_operator_auth(db)
     if get_settings().seed_demo:
         with SessionLocal() as db:
             seed_if_empty(db)
             ensure_machine_sensors(db)
+            ensure_job_roles(db)
     bridge.start()
     yield
     bridge.stop()

@@ -4,26 +4,33 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from .. import queries, services
-from ..auth import require_admin, require_user
+from ..auth import require_admin, require_role
 from ..db import get_db
 from ..models import Operator
 from ..mqtt_bridge import bridge
 from ..schemas import InspectionIn, LotOut, LotSummaryOut, LotTraceOut, ReceiveMaterialIn, ShipmentOut
 
-# 자재 LOT 입고, 품질 판정, 출하, LOT 이력 조회.
+# 자재는 입고와 출하, 품질은 판정, 생산관리는 원자재 조회, 관리자는 이력을 본다.
 router = APIRouter(prefix="/lots", tags=["lots"])
 Db = Annotated[Session, Depends(get_db)]
-User = Annotated[Operator, Depends(require_user)]
 Admin = Annotated[Operator, Depends(require_admin)]
 
 
 @router.get("", response_model=list[LotSummaryOut])
-def list_lots(db: Db, _: User, status_: Annotated[list[str] | None, Query(alias="status")] = None):
+def list_lots(
+    db: Db,
+    _: Annotated[Operator, Depends(require_role("MATERIAL", "PLANNER", "QUALITY", "ADMIN"))],
+    status_: Annotated[list[str] | None, Query(alias="status")] = None,
+):
     return queries.list_lots(db, status_)
 
 
 @router.post("", response_model=LotOut, status_code=status.HTTP_201_CREATED)
-def receive_material(body: ReceiveMaterialIn, db: Db, _: User):
+def receive_material(
+    body: ReceiveMaterialIn,
+    db: Db,
+    _: Annotated[Operator, Depends(require_role("MATERIAL"))],
+):
     return services.receive_material(db, body)
 
 
@@ -36,12 +43,12 @@ def trace(lot_no: str, db: Db, _: Admin):
 
 
 @router.post("/{lot_id}/inspections", response_model=LotOut)
-def inspect(lot_id: int, body: InspectionIn, db: Db, _: User):
+def inspect(lot_id: int, body: InspectionIn, db: Db, _: Annotated[Operator, Depends(require_role("QUALITY"))]):
     lot = services.inspect_lot(db, lot_id, body)
     bridge.sync_all(db)
     return lot
 
 
 @router.post("/{lot_id}/ship", response_model=ShipmentOut, status_code=status.HTTP_201_CREATED)
-def ship(lot_id: int, db: Db, _: User):
+def ship(lot_id: int, db: Db, _: Annotated[Operator, Depends(require_role("MATERIAL"))]):
     return services.ship_lot(db, lot_id)

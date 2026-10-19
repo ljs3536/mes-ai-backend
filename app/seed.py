@@ -1,6 +1,9 @@
-"""데모 시나리오 데이터. 운영자 테이블이 비어 있을 때만 들어간다."""
+"""데모 시나리오 데이터. 운영자 테이블이 비어 있을 때만 들어간다.
 
-from sqlalchemy import select
+직무 사원(자재, 생산관리, 품질)과 작업자 설비 배정은 이미 있는 DB에도 채운다.
+"""
+
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from .auth import default_password, hash_password
@@ -78,6 +81,59 @@ def seed_if_empty(db: Session) -> bool:
     )
     db.commit()
     return True
+
+
+def ensure_operator_machine_column(db: Session) -> None:
+    """기존 사원 테이블에 담당 설비 컬럼이 없으면 추가한다."""
+    column = db.execute(text("SHOW COLUMNS FROM operators LIKE 'machine_id'")).first()
+    if column is not None:
+        return
+    db.execute(text("ALTER TABLE operators ADD COLUMN machine_id INT NULL"))
+    db.execute(text("ALTER TABLE operators ADD UNIQUE KEY uq_operator_machine (machine_id)"))
+    db.commit()
+
+
+def ensure_inspection_quantities(db: Session) -> None:
+    """검사 기록에 합격 수량, 불량 수량, 처리(재가공/폐기) 칸이 없으면 추가한다."""
+    column = db.execute(text("SHOW COLUMNS FROM inspections LIKE 'good_qty'")).first()
+    if column is not None:
+        return
+    db.execute(text("ALTER TABLE inspections ADD COLUMN good_qty INT NULL"))
+    db.execute(text("ALTER TABLE inspections ADD COLUMN defect_qty INT NULL"))
+    db.execute(text("ALTER TABLE inspections ADD COLUMN disposition VARCHAR(16) NULL"))
+    db.commit()
+
+
+def ensure_job_roles(db: Session) -> None:
+    """없는 직무 사원을 채운 뒤 기본 작업자를 설비에 연결한다."""
+    people = (
+        ("MAT-001", "최자재", "MATERIAL"),
+        ("PLN-001", "정생산", "PLANNER"),
+        ("QC-001", "한품질", "QUALITY"),
+    )
+    for employee_no, name, role in people:
+        if db.scalar(select(Operator.id).where(Operator.employee_no == employee_no)) is None:
+            db.add(
+                Operator(
+                    employee_no=employee_no,
+                    name=name,
+                    role=role,
+                    password_hash=hash_password(default_password(role)),
+                )
+            )
+    db.flush()
+
+    for employee_no, code in (("OP-001", "MACHINE_A"), ("OP-002", "MACHINE_B")):
+        operator = db.scalar(select(Operator).where(Operator.employee_no == employee_no))
+        machine = db.scalar(select(Machine).where(Machine.code == code))
+        if operator is None or machine is None or operator.machine_id is not None:
+            continue
+        if operator.role != "OPERATOR":
+            continue
+        taken = db.scalar(select(Operator.id).where(Operator.machine_id == machine.id))
+        if taken is None:
+            operator.machine_id = machine.id
+    db.commit()
 
 
 SENSOR_DEFAULTS = (

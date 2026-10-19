@@ -31,6 +31,9 @@ class Operator(Base):
     name: Mapped[str] = mapped_column(String(64))
     role: Mapped[str] = mapped_column(String(16))
     password_hash: Mapped[str | None] = mapped_column(String(255))
+    machine_id: Mapped[int | None] = mapped_column(ForeignKey("machines.id"), unique=True)
+
+    machine: Mapped["Machine | None"] = relationship("Machine")
 
 
 class Machine(Base):
@@ -123,6 +126,9 @@ class Inspection(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     lot_id: Mapped[int] = mapped_column(ForeignKey("lots.id"))
     result: Mapped[str] = mapped_column(String(16))
+    good_qty: Mapped[int | None] = mapped_column(Integer)
+    defect_qty: Mapped[int | None] = mapped_column(Integer)
+    disposition: Mapped[str | None] = mapped_column(String(16))
     note: Mapped[str | None] = mapped_column(String(255))
 
     lot: Mapped[Lot] = relationship(back_populates="inspections")

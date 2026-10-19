@@ -109,6 +109,7 @@ def dashboard(db: Session) -> DashboardOut:
             hold=by_status.get(LotStatus.HOLD, 0),
             stock=by_status.get(LotStatus.IN_STOCK, 0),
             shipped=by_status.get(LotStatus.SHIPPED, 0),
+            scrapped=by_status.get(LotStatus.SCRAPPED, 0),
             running=sum(m.status == MachineStatus.RUN for m in machines),
         ),
         machines=[MachineOut.model_validate(m) for m in machines],
