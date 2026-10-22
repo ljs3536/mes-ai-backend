@@ -5,8 +5,8 @@
 - 대시보드와 사원 목록은 관리자, 입고와 출하는 자재, 작업지시 발행은 생산관리
 - 작업 시작과 설비 정지·재개는 배정된 작업자. 관리자는 품목별 검사 기준을 두고, 품질은 실측값이 공차 밖인 수량을 재가공 또는 폐기한다
 - 자재 LOT 입고와 LOT 이력
-- 설비 상태와 텔레메트리. 정지는 가공을 멈추고 재개는 같은 작업을 잇는다. 품질 보류는 검사 불합격만 한다
-- 설비에 PIEZO 센서를 연결하고 수집 설정을 저장
+- 설비 상태와 텔레메트리. 작업자는 배정된 설비만 보고, 정지는 가공을 멈추고 재개는 같은 작업을 잇는다. 분석 서비스의 설비 보류는 내부 토큰이 있어야 한다
+- 설비에 PIEZO 센서를 연결하고 수집 설정을 저장. 목록은 관리자 또는 내부 토큰만 본다
 - MQTT로 게이트웨이에 작업을 내리고 설비 상태를 받음. 계정이 있으면 그 계정으로 접속한다
 """
 
@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
-from .auth import ensure_operator_auth
+from .auth import ensure_auth_secret, ensure_operator_auth
 from .config import get_settings
 from .db import Base, SessionLocal, engine
 from .mqtt_bridge import bridge
@@ -38,6 +38,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    ensure_auth_secret()
     Base.metadata.create_all(engine)
     with SessionLocal() as db:
         ensure_operator_machine_column(db)

@@ -15,6 +15,7 @@ from .db import get_db
 from .models import Operator
 
 TOKEN_TTL_SECONDS = 12 * 60 * 60
+PUBLIC_AUTH_SECRET = "mes-local-session"
 ADMIN = "ADMIN"
 MATERIAL = "MATERIAL"
 PLANNER = "PLANNER"
@@ -77,6 +78,42 @@ def require_admin(user: Annotated[Operator, Depends(require_user)]) -> Operator:
     if user.role != ADMIN:
         raise HTTPException(403, "관리자만 접근할 수 있습니다.")
     return user
+
+
+def token_matches(provided: str | None, expected: str) -> bool:
+    if not expected or not provided:
+        return False
+    return hmac.compare_digest(
+        hashlib.sha256(provided.encode()).digest(),
+        hashlib.sha256(expected.encode()).digest(),
+    )
+
+
+def require_internal(x_internal_token: Annotated[str | None, Header()] = None) -> None:
+    """분석 서비스가 설비 보류를 호출할 때 쓰는 내부 토큰만 통과한다."""
+    if not token_matches(x_internal_token, get_settings().internal_token):
+        raise HTTPException(401, "내부 호출 인증이 필요합니다.")
+
+
+def require_admin_or_internal(
+    db: Annotated[Session, Depends(get_db)],
+    authorization: Annotated[str | None, Header()] = None,
+    x_internal_token: Annotated[str | None, Header()] = None,
+) -> None:
+    """관리자 세션 또는 에뮬레이터 내부 토큰만 센서 목록을 본다."""
+    if token_matches(x_internal_token, get_settings().internal_token):
+        return
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(401, "로그인이 필요합니다.")
+    user = read_token(authorization.removeprefix("Bearer ").strip(), db)
+    if user.role != ADMIN:
+        raise HTTPException(403, "관리자만 접근할 수 있습니다.")
+
+
+def ensure_auth_secret() -> None:
+    secret = get_settings().auth_secret
+    if secret == PUBLIC_AUTH_SECRET or len(secret) < 16:
+        raise RuntimeError("AUTH_SECRET을 16자 이상의 비공개 값으로 설정하세요.")
 
 
 def require_role(*roles: str):

@@ -4,14 +4,14 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..auth import require_admin
+from ..auth import require_admin, require_admin_or_internal
 from ..db import get_db
 from ..models import Machine, MachineSensor, Operator
 from ..schemas import MachineSensorIn, MachineSensorOut
 from ..services import DomainError
 
 # 설비와 PIEZO 센서의 연결. 수집 주기, 샘플레이트, 샘플 수, 파형 프리셋을 설비별로 저장한다.
-# 목록 조회는 에뮬레이터가 쓰고, 추가와 변경은 관리자만 한다.
+# 목록 조회는 관리자 세션 또는 내부 토큰이 있는 에뮬레이터만 하고, 추가와 변경은 관리자만 한다.
 router = APIRouter(prefix="/sensors", tags=["sensors"])
 Db = Annotated[Session, Depends(get_db)]
 Admin = Annotated[Operator, Depends(require_admin)]
@@ -45,7 +45,7 @@ def _check(data: MachineSensorIn) -> None:
 
 
 @router.get("", response_model=list[MachineSensorOut])
-def list_sensors(db: Db, machine: Annotated[str | None, Query()] = None):
+def list_sensors(db: Db, _: Annotated[None, Depends(require_admin_or_internal)], machine: Annotated[str | None, Query()] = None):
     stmt = select(MachineSensor, Machine).join(Machine).order_by(Machine.code, MachineSensor.code)
     if machine:
         stmt = stmt.where(Machine.code == machine)
